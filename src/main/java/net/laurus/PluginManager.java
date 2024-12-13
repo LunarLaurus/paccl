@@ -24,6 +24,7 @@ import net.laurus.interfaces.TransformerPlugin;
 public class PluginManager {
 	private final List<TransformerPlugin> plugins = new ArrayList<>();
 	private final Map<String, List<TransformerPlugin>> classToPluginsMap = new ConcurrentHashMap<>();
+	private final List<TransformerPlugin> wildcardPlugins = new ArrayList<>();
 	private boolean pluginsLoaded = false;
 
     /**
@@ -62,12 +63,25 @@ public class PluginManager {
 					log.info("Description: {}", metadata.description());
 
 					// Map plugin to target classes
-					for (String targetClass : metadata.targetClasses()) {
-						classToPluginsMap.computeIfAbsent(targetClass, k -> new ArrayList<>()).add(plugin);
+					boolean wildcard = false;
+					if (metadata.targetClasses().length == 1) {
+						String target = metadata.targetClasses()[0];
+						if (target != null && target.length() == 1 && target.equals("*")) {
+							wildcard = true;
+						}
 					}
-
-					log.info("Plugin {} registered for {} target class(es).", metadata.name(),
-							metadata.targetClasses().length);
+					if (wildcard) {
+						wildcardPlugins.add(plugin);
+					}
+					else {
+						for (String targetClass : metadata.targetClasses()) {
+							classToPluginsMap.computeIfAbsent(targetClass, k -> new ArrayList<>()).add(plugin);
+						}
+					}
+					String logString = wildcard 
+							? "Plugin "+metadata.name()+" registered, it is a wildcard and will be applied to ALL classes loaded." 
+							: "Plugin "+metadata.name()+" registered for "+metadata.targetClasses().length+" target class(es).";
+					log.info(logString);
 				} catch (ReflectiveOperationException | IllegalStateException e) {
 					log.error("Failed to instantiate plugin class: {}", pluginClass.getName(), e);
 				}
@@ -109,6 +123,9 @@ public class PluginManager {
      * @return A list of TransformerPlugin instances for the class, or an empty list if none are applicable.
      */
 	public List<TransformerPlugin> getPluginsForClass(String className) {
-		return classToPluginsMap.getOrDefault(className, Collections.emptyList());
+		List<TransformerPlugin> registeredPlusWildcard = new ArrayList<>();
+		registeredPlusWildcard.addAll(classToPluginsMap.getOrDefault(className, Collections.emptyList()));
+		registeredPlusWildcard.addAll(wildcardPlugins);		
+		return registeredPlusWildcard;
 	}
 }

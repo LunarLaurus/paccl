@@ -66,3 +66,4 @@ surefire-reports/
 # Build files
 build/
 dist/
+/.classcache
