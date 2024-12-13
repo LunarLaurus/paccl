@@ -1,0 +1,46 @@
+name: Build Verification
+
+on:
+  pull_request:
+    branches:
+      - '**'  # Trigger on pull requests to any branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read  # This allows the action to read from GitHub Packages
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4  # Checkout the repository
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository  # Cache Maven dependencies
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}  # Cache key based on the pom.xml file
+          restore-keys: |
+            ${{ runner.os }}-maven-  # Fallback if the exact key is not found
+
+      - name: Build with Maven
+        run: mvn clean install -B  # The -B flag enables batch mode to avoid prompts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token if needed for authentication
+
+      - name: Run tests
+        run: mvn test  # Run the tests after building
+
+      - name: Cache Maven build output (optional)
+        uses: actions/cache@v3
+        with:
+          path: target/  # Cache the build artifacts
+          key: ${{ runner.os }}-maven-target-${{ hashFiles('**/pom.xml') }}  # Key based on pom.xml to invalidate cache when dependencies change
+          restore-keys: |
+            ${{ runner.os }}-maven-target-  # Fallback key

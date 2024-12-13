@@ -1,0 +1,129 @@
+name: Java-Maven-Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      java_version: ${{ steps.get_version.outputs.java_version }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+          cache: maven
+          
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Get and Bump Java Version
+        id: get_version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          NEW_VERSION=$(echo $VERSION | awk -F. -v OFS=. '{$NF = $NF + 1 ; print}')
+          echo "Bumping version from $VERSION to $NEW_VERSION"
+          mvn versions:set -DnewVersion=$NEW_VERSION -DgenerateBackupPoms=false
+          echo "java_version=$NEW_VERSION" >> $GITHUB_ENV
+          echo "java_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit and Push Updated Version
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add pom.xml
+          git commit -m "Bump version to ${{ steps.get_version.outputs.java_version }}"
+          git push origin ${{ github.ref }}
+
+  build:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: bump-version
+    outputs:
+      tag: ${{ steps.create_tag.outputs.tag }}
+      jar_path: ${{ steps.build_maven.outputs.jar_path }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+          cache: maven
+          
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build with Maven
+        id: build_maven
+        run: |
+          mvn clean install
+          # Set the path to the generated .jar file
+          JAR_PATH=$(find target -name "*.jar" | head -n 1)
+          echo "jar_path=$JAR_PATH" >> $GITHUB_ENV
+          echo "jar_path=$JAR_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create Git Tag
+        id: create_tag
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          TAG="v${{ needs.bump-version.outputs.java_version }}"
+          echo "tag=$TAG" >> $GITHUB_ENV
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        packages: write
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'zulu'
+
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    
+    - name: Build with Maven
+      run: mvn clean package -DskipTests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Deploy to GitHub Packages
+      run: mvn deploy -DskipTests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
