@@ -69,7 +69,8 @@ public class MainRunner {
                     pluginManager
             );
 
-            LibraryLoader.loadLibraries(classLoader);
+            List<URL> plugins = LibraryLoader.loadLibraries(classLoader);
+            LibraryLoader.scanAndLoadPlugins(plugins, classLoader);
             log.info("Custom class loader initialized successfully.");
             return classLoader;
         }
