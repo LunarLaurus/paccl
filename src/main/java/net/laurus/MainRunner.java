@@ -1,5 +1,6 @@
 package net.laurus;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URL;
@@ -33,10 +34,6 @@ public class MainRunner {
             // Initialize Class Loader
             PluginAwareCachingClassLoader classLoader = ClassLoaderInitializer.initialize(pluginManager, targetJarName);
 
-            // Load Plugins
-            pluginManager.loadPlugins("net.laurus.cls.plugins");
-            log.info("Loaded {} plugin(s).", pluginManager.getPlugins().size());
-
             // Run Main Method
             MainMethodInvoker.runMainMethod(mainClassName, mainArgs, classLoader);
 
@@ -69,9 +66,24 @@ public class MainRunner {
                     pluginManager
             );
 
-            List<URL> plugins = LibraryLoader.loadLibraries(classLoader);
-            LibraryLoader.scanAndLoadPlugins(plugins, classLoader);
-            log.info("Custom class loader initialized successfully.");
+            try {
+                // Discover and load libraries into the custom class loader
+                List<URL> plugins = LibraryLoader.discoverLibraries();
+                LibraryLoader.loadLibraries(plugins, classLoader);
+                log.info("Custom class loader initialized successfully with {} library(ies).", plugins.size());
+
+                // Load internal plugins (defined in the application package)
+                pluginManager.loadPlugins("net.laurus.cls.plugins");
+
+                // Load external plugins (from discovered libraries)
+                pluginManager.loadPluginsFromJars(plugins, classLoader);
+
+                log.info("Loaded {} plugin(s).", pluginManager.getPlugins().size());
+
+            } catch (IOException e) {
+                log.error("Failed to initialize custom class loader or load plugins.", e);
+            }
+            
             return classLoader;
         }
     }

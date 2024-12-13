@@ -42,7 +42,7 @@ public class PluginAwareCachingClassLoader extends URLClassLoader {
     @Override
     public void addURL(URL jarUrl) {
         super.addURL(jarUrl);
-        log.info("Added library to classpath: {}", jarUrl);
+        log.info("Added jar to classpath: {}", jarUrl);
     }
     
     /**
