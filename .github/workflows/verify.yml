@@ -22,7 +22,7 @@ jobs:
           distribution: 'zulu'
 
       - name: Cache Maven dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.m2/repository  # Cache Maven dependencies
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}  # Cache key based on the pom.xml file
@@ -38,7 +38,7 @@ jobs:
         run: mvn test  # Run the tests after building
 
       - name: Cache Maven build output (optional)
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: target/  # Cache the build artifacts
           key: ${{ runner.os }}-maven-target-${{ hashFiles('**/pom.xml') }}  # Key based on pom.xml to invalidate cache when dependencies change
