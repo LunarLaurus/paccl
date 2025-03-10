@@ -1,12 +1,17 @@
 package net.laurus;
 
-import java.util.*;
-
 import static net.laurus.LibraryLoader.getNameFromURL;
 
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.reflections.Reflections;
+import org.reflections.ReflectionsException;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
 
@@ -26,8 +31,18 @@ public class PluginManager {
     private final List<TransformerPlugin> plugins = new ArrayList<>();
     private final List<TransformerPlugin> wildcardPlugins = new ArrayList<>();
     private final Map<String, List<TransformerPlugin>> classToPluginsMap = new HashMap<>();
-    private boolean externalPluginsLoaded = false;
+    
+    /**
+     * Flag to ensure internal plugins are loaded only once.
+     * Note: If hot-reloading of plugins is needed, these flags must be reset accordingly.
+     */
     private boolean internalPluginsLoaded = false;
+    
+    /**
+     * Flag to ensure external plugins are loaded only once.
+     * Note: If hot-reloading of plugins is needed, these flags must be reset accordingly.
+     */
+    private boolean externalPluginsLoaded = false;
     
     /**
      * Discovers plugin classes in the specified package.
@@ -92,11 +107,14 @@ public class PluginManager {
 
     /**
      * Scans JAR files for plugins and registers them.
+     * <p>
+     * FIX 1: This method is now synchronized to avoid race conditions during external plugin loading.
+     * </p>
      *
      * @param jarUrls The list of JAR URLs to scan for plugins.
      * @param classLoader The class loader to use for scanning.
      */
-    public void loadPluginsFromJars(List<URL> jarUrls, ClassLoader classLoader) {
+    public synchronized void loadPluginsFromJars(List<URL> jarUrls, ClassLoader classLoader) {
         if (externalPluginsLoaded) {
             log.warn("Plugins have already been loaded. Skipping repeated load.");
             return;
@@ -154,6 +172,9 @@ public class PluginManager {
 
     /**
      * Scans a JAR file for @Plugin-annotated classes.
+     * <p>
+     * FIX 3: This method now catches specific exceptions to provide better error diagnostics.
+     * </p>
      *
      * @param jarUrl The JAR URL to scan.
      * @param classLoader The class loader to use for scanning.
@@ -168,8 +189,11 @@ public class PluginManager {
 
             Reflections reflections = new Reflections(config);
             return reflections.getTypesAnnotatedWith(Plugin.class);
+        } catch (ReflectionsException re) {
+            log.error("Reflections exception scanning JAR for plugins: {} - {}", getNameFromURL(jarUrl), re.getMessage());
+            return Set.of();
         } catch (Exception e) {
-            log.error("Error scanning JAR for plugins: {}", getNameFromURL(jarUrl), e);
+            log.error("Unexpected error scanning JAR for plugins: {} - {}", getNameFromURL(jarUrl), e.getMessage(), e);
             return Set.of();
         }
     }

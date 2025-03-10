@@ -8,7 +8,6 @@ import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -35,20 +34,19 @@ public class LibraryLoader {
         }
 
         List<URL> jarFilesFound = new LinkedList<>();
-        Files.walk(libraryDir, 1) // Limit depth to 1
-            .filter(path -> path.toString().endsWith(".jar"))
-            .forEach(path -> {
-                try {
-                    jarFilesFound.add(path.toUri().toURL());
-                } catch (IOException e) {
-                    log.error("Failed to convert path to URL: {}", path, e);
-                }
-            });
+        try (var paths = Files.walk(libraryDir, 1)) { // Using try-with-resources
+            paths.filter(path -> path.toString().toLowerCase().endsWith(".jar"))
+                 .forEach(path -> {
+                     try {
+                         jarFilesFound.add(path.toUri().toURL());
+                     } catch (IOException e) {
+                         log.error("Failed to convert path to URL: {}", path, e);
+                     }
+                 });
+        }
 
         return jarFilesFound;
     }
-    
-
 
     /**
      * Ensures that the specified directory exists. Attempts to create it if it does not exist.
@@ -57,11 +55,16 @@ public class LibraryLoader {
      * @return True if the directory exists or was successfully created, false otherwise.
      */
     private static boolean ensureDirectoryExists(Path directory) {
-        if (!Files.exists(directory) || !Files.isDirectory(directory)) {
-            log.warn("Directory '{}' does not exist or is not a directory. Attempting to create it.", directory);
-            return directory.toFile().mkdirs();
+        try {
+            if (!Files.exists(directory) || !Files.isDirectory(directory)) {
+                log.warn("Directory '{}' does not exist or is not a directory. Attempting to create it.", directory);
+                Files.createDirectories(directory);
+            }
+            return true;
+        } catch (IOException e) {
+            log.error("Failed to create directory '{}': {}", directory, e.getMessage());
+            return false;
         }
-        return true;
     }
 
     /**
@@ -127,7 +130,7 @@ public class LibraryLoader {
         }
 
         Path targetJar = targetDir.resolve(jarFileName);
-        if (!Files.exists(targetJar) || !targetJar.toString().endsWith(".jar")) {
+        if (!Files.exists(targetJar) || !targetJar.toString().toLowerCase().endsWith(".jar")) {
             log.warn("JAR file '{}' not found in target directory '{}'.", jarFileName, TARGET_FOLDER);
             return Optional.empty();
         }
