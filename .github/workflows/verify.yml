@@ -16,13 +16,13 @@ jobs:
         uses: actions/checkout@v6  # Checkout the repository
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: 'zulu'
 
       - name: Cache Maven dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.m2/repository  # Cache Maven dependencies
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}  # Cache key based on the pom.xml file
@@ -38,7 +38,7 @@ jobs:
         run: mvn test  # Run the tests after building
 
       - name: Cache Maven build output (optional)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: target/  # Cache the build artifacts
           key: ${{ runner.os }}-maven-target-${{ hashFiles('**/pom.xml') }}  # Key based on pom.xml to invalidate cache when dependencies change
